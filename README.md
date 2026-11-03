@@ -6,9 +6,11 @@ with the native Quartz backend, without requiring an XQuartz server.
 The PCB file format is preserved. GTK3 is outside the current scope.
 
 The fork adds build and packaging scripts, a native application launcher,
-targeted editor tests and two source patches for relocatable translations
-and a separate macOS configuration profile. The patches are applied to a
-build snapshot; the upstream C files in this checkout remain unchanged.
+targeted editor/import tests and source patches for relocatable translations,
+a separate macOS configuration profile and import failure handling.
+The standalone application can import schematics through an installed
+LeptonEDA.app using its bundled compatibility backend. The patches are applied
+to a build snapshot; the upstream C files in this checkout remain unchanged.
 
 The current target is Apple Silicon with Homebrew in `/opt/homebrew`,
 on macOS 26 or newer. Homebrew is needed to build; the standalone `PCB.app`

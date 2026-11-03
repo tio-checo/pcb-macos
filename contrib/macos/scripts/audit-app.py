@@ -34,6 +34,8 @@ subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)]
 for name in ('pixbuf-loaders.cache.in', 'gtk-immodules.cache.in', 'gtkrc.in'):
     text = (app / 'Contents/Resources' / name).read_text()
     assert '/opt/homebrew' not in text and '/opt/local' not in text, name
+assert (app / 'Contents/Resources/bin/gnetlist').stat().st_mode & 0o111
+assert (app / 'Contents/Resources/share/pcb/netlist/backend/pcbfwd.scm').is_file()
 print(json.dumps(dict(result='PASS', bundle=str(app), arm64_images=len(images),
                      no_external_non_Apple_load_commands=True, no_external_rpaths=True,
                      all_symlinks_contained=True, ad_hoc_signature_valid=True), indent=2))

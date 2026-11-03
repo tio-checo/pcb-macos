@@ -66,6 +66,9 @@ def resolve(dep, src):
     return Path(dep).resolve()
 
 tree(PREFIX / 'share', RES / 'share')
+tree(SUPPORT / 'netlist', RES / 'share/pcb/netlist')
+shutil.copy2(SUPPORT / 'scripts/gnetlist-bridge.sh', RES / 'bin/gnetlist')
+(RES / 'bin/gnetlist').chmod(0o755)
 (CONT / 'share').symlink_to('Resources/share', target_is_directory=True)
 for name in ('Default', 'Raleigh', 'Mac'):
     tree(Path('/opt/homebrew/share/themes') / name, RES / 'share/themes' / name)
@@ -189,8 +192,9 @@ source = RES / 'source'
 source.mkdir()
 subprocess.run(['git', '-C', str(SOURCE_ROOT), 'archive', '--format=tar.gz', '-o', str(source / 'pcb-upstream.tar.gz'), 'HEAD'], check=True)
 tree(SUPPORT / 'patches', source / 'patches')
+tree(SUPPORT / 'netlist', source / 'netlist')
 (source / 'packaging').mkdir()
-for name in ('bundle-launcher.c', 'build-app.py', 'audit-app.py', 'build-env.sh', 'build-gtk2.sh', 'apply-source-patches.sh', 'preflight.sh'):
+for name in ('bundle-launcher.c', 'build-app.py', 'audit-app.py', 'build-env.sh', 'build-gtk2.sh', 'apply-source-patches.sh', 'preflight.sh', 'gnetlist-bridge.sh'):
     shutil.copy2(SUPPORT / 'scripts' / name, source / 'packaging' / name)
 manifest = dict(pcb_commit=commit, architecture='arm64', gtk_backend='quartz', minimum_macos='26.0',
                 ad_hoc_signed=True, notarized=False,

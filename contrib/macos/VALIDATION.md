@@ -36,6 +36,41 @@ to the parent workspace, outside Git. No private design files, personal
 configuration, host-specific loader traces or application binaries are
 included in this repository. The test uses the upstream public LED example.
 
+## Lepton import checks
+
+The new `test-import.py` suite passed 23 checks using separate PCB and Lepton
+profiles and a public two-component schematic. It verifies automatic discovery
+and configured application paths with spaces, multiple source files, quoted
+values, exact nets and pin labels, component attributes, and restoration of D3
+after deletion while preserving R1 placement. Missing Lepton, failed netlisters
+with partial output and oversized records leave the board unchanged.
+
+All 23 checks also passed with the app moved to a path with spaces, while a
+sandbox denied reads of Homebrew, MacPorts and both source/build workspaces.
+The changed app passed the 25 existing editor checks, library/signature audit,
+3 upstream unit tests and 27 selected text regression cases. The final packaged
+app passed these checks again, including import after relocation with reads
+of Homebrew, MacPorts and both source/build workspaces denied.
+
+A separate test on a disposable copy of a private project passed 27 checks.
+The board and schematic contain 61 components and 48 nets. Deleting a component
+and running Import() restored its footprint from a configured local library,
+value and pin labels. All imported connections matched an independent Lepton
+tEDAx netlist. The other 60 components kept their positions and footprint
+geometry; all ten layer records and four vias remained unchanged. Import also
+updated nine previously unknown values from the schematic.
+
+The resulting board saved, reopened and exported to PNG. Coordinate comparisons
+allowed for the precision of PCB's printed mm/mil units. The original project,
+local footprint and user configuration files were unchanged. Private project
+files and personal library paths are excluded from this repository; the public
+fixture uses bundled footprints only.
+
+A restored component is inserted as a new component and needs manual placement
+and clearance checks. Its default position can overlap existing copper and
+produce temporary connectivity warnings. The previous position of a deleted
+component is not recovered by schematic import.
+
 ## Manual checks
 
 The development editor was checked for window display and resize, zoom,
@@ -57,12 +92,14 @@ build is provided yet.
 
 GTK3 is not implemented. OpenGL, D-Bus and the Tcl/Tk QFP footprint generator
 are disabled. Printing, all advanced exporters, clipboard behavior and
-integration with Lepton EDA have not been fully validated. The complete
-upstream image regression suite was not run; the selected text cases were.
+the complete workflow on personal projects have not been fully validated.
+Lepton integration now has a dedicated public-fixture test (`test-import.py`),
+including restore-after-delete, exact nets and failed-netlister isolation.
+The complete upstream image regression suite was not run; the selected text cases were.
 Finder document association is not configured. The old `~/.pcb` settings
 are not imported automatically.
 
-Two macOS-only patches are applied to the archived build snapshot: a runtime
-locale directory and a separate PCB settings profile. Bundle helper scripts
-are also adjusted for spaces in paths and bundled GNU m4. The original
+Three macOS-only patches are applied to the archived build snapshot: a runtime
+locale directory, a separate PCB settings profile and import child-process
+status checking. Bundle helper scripts are also adjusted for spaces in paths and bundled GNU m4. The original
 upstream C files remain unchanged in the checkout.

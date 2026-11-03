@@ -104,6 +104,8 @@ int main(int argc, char **argv) {
   strcpy(home, real_home);
   char *lang = strdup(getenv("LANG") ? getenv("LANG") : "en_US.UTF-8");
   int trace = getenv("DYLD_PRINT_LIBRARIES") && !strcmp(getenv("DYLD_PRINT_LIBRARIES"), "1");
+  const char *lepton_override = getenv("LEPTON_BUNDLE_PROFILE");
+  char *lepton_profile = lepton_override && lepton_override[0] == '/' ? strdup(lepton_override) : NULL;
   mkdirs(profile);
   const char *dirs[] = {"cache", "config", "data", "tmp"};
   for (unsigned i = 0; i < 4; ++i) { char p[PATH_MAX]; join(p, profile, dirs[i]); mkdirs(p); }
@@ -114,6 +116,7 @@ int main(int argc, char **argv) {
     if (unsetenv(key)) { free(key); return 2; }
     free(key);
   }
+  if (lepton_profile) { setenv("LEPTON_BUNDLE_PROFILE", lepton_profile, 1); free(lepton_profile); }
   setenv("HOME", home, 1); setenv("PCB_BUNDLE_PROFILE", profile, 1);
   setenv("PCB_BUNDLE_RESOURCES", resources, 1); setenv("LANG", lang, 1); free(lang);
   envpath("TMPDIR", profile, "tmp/");

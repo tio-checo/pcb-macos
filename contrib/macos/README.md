@@ -101,6 +101,57 @@ The actual HOME remains available to file dialogs and `~` paths.
 A launch without arguments writes diagnostic output to `editor.log` in the
 profile. `PCB_BUNDLE_PROFILE=/absolute/path` selects a test profile.
 
+## Import schematics from Lepton EDA
+
+The standalone PCB application includes a `gnetlist` compatibility entry point
+and a `pcbfwd` backend for Lepton. File → Import Schematics → gschem now uses
+Lepton's netlister, passing footprints, values, connections, pin labels and
+selected component attributes to PCB. LeptonEDA.app must be installed to use
+this optional import feature; it is not bundled into PCB.
+
+The bridge looks for LeptonEDA.app beside PCB.app, then in `/Applications`,
+then in `~/Applications`. To select a different installation, put its absolute
+application path on a single line in
+`~/Library/Application Support/PCB-Quartz/lepton-app`. This is a data file,
+not a shell script. An explicitly configured invalid path reports an error
+instead of selecting a different installation.
+
+The backend is loaded from PCB's own resources; Lepton's installed files are
+not changed. Lepton uses its own normal profile for symbol libraries.
+An explicit `LEPTON_BUNDLE_PROFILE` is preserved for isolated integration tests.
+PCB footprint libraries still need their own configuration; locating schematic
+symbols in Lepton does not configure PCB's footprint search path.
+
+To add a local footprint directory, create or edit
+`~/Library/Application Support/PCB-Quartz/.pcb/preferences` and add a line such as:
+
+```text
+library-newlib = ~/PCB-footprints
+```
+
+Use your actual footprint directory. This setting adds it to the bundled
+footprint libraries. Restart PCB after changing preferences. Imported footprint
+names must match files in an available library. A deleted component restored
+by import needs manual placement and clearance checks.
+
+The import checks the netlister's exit status before applying any commands.
+Missing Lepton, a netlister error or an unsupported oversized action record
+leaves the board unchanged. Normal Finder launches record stderr diagnostics
+in the PCB profile's `editor.log`. This PCB version accepts action lines up to
+254 UTF-8 bytes; the backend rejects longer records and literal newlines in
+arguments with a diagnostic rather than sending truncated commands.
+
+After packaging, test the complete integration with public fixtures:
+
+```sh
+/usr/bin/python3 contrib/macos/scripts/test-import.py --app ../dist/PCB.app
+```
+
+This test uses separate PCB and Lepton profiles, imports a two-component
+schematic, deletes and restores D3, verifies exact connectivity and checks
+failed and partially written netlist output. It does not use personal designs
+or modify existing application settings.
+
 ## Development and editor tests
 
 The development bundle depends on this checkout and Homebrew:
