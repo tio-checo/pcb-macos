@@ -18,3 +18,7 @@ stamp-*
 test-driver
 doc/*.eps
 *~
+
+# Local macOS editor/Python artifacts
+.DS_Store
+/contrib/macos/**/__pycache__/

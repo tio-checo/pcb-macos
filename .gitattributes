@@ -1,0 +1,2 @@
+# Unified patches retain whitespace from upstream context lines.
+contrib/macos/patches/*.patch -whitespace

@@ -1,0 +1,35 @@
+--- a/src/main.c
++++ b/src/main.c
+@@ -1886,7 +1886,9 @@
+     {
+       char *tmps;
+ 
+-      tmps = getenv ("HOME");
++      tmps = getenv ("PCB_BUNDLE_PROFILE");
++      if (tmps == NULL || tmps[0] != '/')
++        tmps = getenv ("HOME");
+ 
+       if (tmps == NULL) {
+           tmps = getenv ("USERPROFILE");
+--- a/src/hid/gtk/gui-config.c
++++ b/src/hid/gtk/gui-config.c
+@@ -199,7 +199,9 @@
+   gchar *homedir, *fname;
+ 
+ 
+-  homedir = (gchar *) g_get_home_dir ();
++  homedir = getenv ("PCB_BUNDLE_PROFILE");
++  if (!homedir || homedir[0] != '/')
++    homedir = (gchar *) g_get_home_dir ();
+   if (!homedir)
+     {
+       g_message ("config_file_open: Can't get home directory!");
+@@ -750,7 +752,7 @@
+   load_rc_file (path);
+   g_free (path);
+ 
+-  path = g_build_filename ((gchar *) g_get_home_dir (), ".pcb/pcbrc", NULL);
++  path = g_build_filename (homedir ? homedir : (gchar *) g_get_home_dir (), ".pcb/pcbrc", NULL);
+   load_rc_file (path);
+   g_free (path);
+ 
