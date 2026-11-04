@@ -82,6 +82,13 @@ images; this can vary with installed dependency versions.
 
 Open board files using File → Open. Open the footprint library using
 Window → Library or `i`. Finder document association is not configured.
+Check opening Preferences with fresh and configured library settings using:
+
+```sh
+/usr/bin/python3 contrib/macos/scripts/test-preferences.py --app ../dist/PCB.app
+```
+
+The test uses disposable profiles and leaves user preferences unchanged.
 Command line examples:
 
 ```sh

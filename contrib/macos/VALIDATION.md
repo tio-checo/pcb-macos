@@ -114,8 +114,21 @@ The complete upstream image regression suite was not run; the selected text case
 Finder document association is not configured. The old `~/.pcb` settings
 are not imported automatically.
 
-Four macOS-only patches are applied to the archived build snapshot: a runtime
+Five macOS-only patches are applied to the archived build snapshot: a runtime
 locale directory, a separate PCB settings profile, import child-process
-status checking and GTK final cleanup so File → Quit saves preferences. Bundle
-helper scripts are also adjusted for spaces in paths and bundled GNU m4. The
-original upstream C files remain unchanged in the checkout.
+status checking, GTK final cleanup so File → Quit saves preferences, and safe
+handling of an unset custom library preference. Bundle helper scripts are also
+adjusted for spaces in paths and bundled GNU m4. The original upstream C files
+remain unchanged in the checkout.
+
+## Preferences crash fix (4 November 2026)
+
+Opening File → Preferences with an unset `library-newlib` passed NULL to
+`gtk_entry_set_text`, causing a segmentation fault in the bundled GTK2 build.
+Patch 0005 displays an empty string when no custom library is configured.
+
+The rebuilt app passed repeated Preferences actions with fresh, unset, empty
+and configured library settings through `test-preferences.py`. The test uses
+disposable profiles and the same `DoWindows(Preferences)` action as the menu;
+it does not validate all dialog interactions. The public LED board also
+loaded and exported to PNG successfully.

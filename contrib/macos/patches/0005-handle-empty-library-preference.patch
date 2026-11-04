@@ -1,0 +1,13 @@
+--- a/src/hid/gtk/gui-config.c
++++ b/src/hid/gtk/gui-config.c
+@@ -1289,7 +1289,9 @@
+   gtk_box_pack_start (GTK_BOX (vbox), label, FALSE, FALSE, 0);
+   entry = gtk_entry_new ();
+   library_newlib_entry = entry;
+-  gtk_entry_set_text (GTK_ENTRY (entry), lib_newlib_config);
++  /* Custom library paths are optional and NULL in a fresh profile. */
++  gtk_entry_set_text (GTK_ENTRY (entry),
++                      lib_newlib_config ? lib_newlib_config : "");
+   gtk_box_pack_start (GTK_BOX (vbox), entry, FALSE, FALSE, 4);
+ }
+ 
