@@ -1,0 +1,26 @@
+--- a/src/hid/gtk/gtkhid-main.c
++++ b/src/hid/gtk/gtkhid-main.c
+@@ -2279,6 +2279,15 @@
+ HID ghid_hid;
+ HID_DRAW ghid_graphics;
+ 
++/* Normal Quit() calls this before the core frees application data, including
++ * when startup actions quit before the GTK main loop has been entered. */
++static void
++ghid_uninit (HID *hid)
++{
++  (void) hid;
++  ghid_config_files_write ();
++}
++
+ void
+ hid_gtk_init ()
+ {
+@@ -2335,6 +2344,7 @@
+ 
+   ghid_hid.get_export_options       = ghid_get_export_options;
+   ghid_hid.do_export                = ghid_do_export;
++  ghid_hid.uninit                   = ghid_uninit;
+   ghid_hid.parse_arguments          = ghid_parse_arguments;
+   ghid_hid.invalidate_lr            = ghid_invalidate_lr;
+   ghid_hid.invalidate_all           = ghid_invalidate_all;

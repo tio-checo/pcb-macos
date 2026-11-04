@@ -101,6 +101,11 @@ The actual HOME remains available to file dialogs and `~` paths.
 A launch without arguments writes diagnostic output to `editor.log` in the
 profile. `PCB_BUNDLE_PROFILE=/absolute/path` selects a test profile.
 
+Window dimensions are saved on normal exit, including File → Quit and the
+window's close button, and restored on the next launch. They are stored as
+`top-window-width` and `top-window-height` in `.pcb/preferences` under the
+profile. Forced termination does not save settings.
+
 ## Import schematics from Lepton EDA
 
 The standalone PCB application includes a `gnetlist` compatibility entry point
@@ -177,6 +182,19 @@ closes its own editor and saves results in a `session-*` directory.
 It leaves unrelated editor sessions alone. It checks 25 conditions including
 library indexing, edit/undo/redo, rotated pin coordinates, save/reopen,
 legacy m4 footprint generation, PNG export and isolated settings.
+
+Check saving and restoring window size through the same `Quit()` action used
+by File → Quit:
+
+```sh
+/usr/bin/python3 contrib/macos/scripts/test-window-size.py --app ../dist/PCB.app
+```
+
+This test uses a disposable profile and a public example copy. It forces an
+initial geometry change through GTK's minimum-size constraint, checks saved
+preferences after normal exit, and compares actual Quartz window dimensions
+after restart. It needs the macOS graphical session and Command Line Tools;
+it does not use accessibility or modify the normal user profile.
 
 For an independent relocation check, copy the app outside the workspace.
 Both the app and test directory must be outside the blocked workspace:

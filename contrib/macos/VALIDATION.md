@@ -71,6 +71,21 @@ and clearance checks. Its default position can overlap existing copper and
 produce temporary connectivity warnings. The previous position of a deleted
 component is not recovered by schematic import.
 
+## Window size on normal Quit
+
+Validated on 4 November 2026. The new `test-window-size.py` reproduced the
+missing preferences write in the previous app. After the GTK cleanup callback
+was added, all ten checks passed: normal Quit writes the changed geometry
+and complete preferences, and a second launch restores the same actual Quartz
+window size. Both sessions exit normally without GTK critical errors.
+A startup `Quit()` before the GTK main loop also exits cleanly without critical
+errors. The test uses the same `Quit()` action as File → Quit, a disposable
+profile and the public LED example; it does not require accessibility automation.
+
+The rebuilt standalone app also passed the 25 editor checks, all three upstream
+unit checks and the audit of 75 arm64 native images, bundled dependencies and
+local ad hoc signatures. The user's existing profile was not changed.
+
 ## Manual checks
 
 The development editor was checked for window display and resize, zoom,
@@ -99,7 +114,8 @@ The complete upstream image regression suite was not run; the selected text case
 Finder document association is not configured. The old `~/.pcb` settings
 are not imported automatically.
 
-Three macOS-only patches are applied to the archived build snapshot: a runtime
-locale directory, a separate PCB settings profile and import child-process
-status checking. Bundle helper scripts are also adjusted for spaces in paths and bundled GNU m4. The original
-upstream C files remain unchanged in the checkout.
+Four macOS-only patches are applied to the archived build snapshot: a runtime
+locale directory, a separate PCB settings profile, import child-process
+status checking and GTK final cleanup so File → Quit saves preferences. Bundle
+helper scripts are also adjusted for spaces in paths and bundled GNU m4. The
+original upstream C files remain unchanged in the checkout.
