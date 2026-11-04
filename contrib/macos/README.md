@@ -203,7 +203,7 @@ preferences after normal exit, and compares actual Quartz window dimensions
 after restart. It needs the macOS graphical session and Command Line Tools;
 it does not use accessibility or modify the normal user profile.
 
-Check Thin Draw Poly and Thin Draw using actual GTK renderer pixels:
+Check Thin Draw Poly and Thin Draw using actual GTK/GDK renderer pixels:
 
 ```sh
 /usr/bin/python3 contrib/macos/scripts/test-thin-draw.py --app ../dist/PCB.app
@@ -213,7 +213,9 @@ This test requires the GTK2 development headers and Command Line Tools used
 for building. It loads a test-only GTK module, captures offscreen pixmaps of
 a generated polygon and trace, and checks normal fill, outlines, trace width,
 restoration after toggling and filled Gerber export. It uses a disposable
-profile; screen recording and accessibility permissions are not needed.
+profile; screen recording and accessibility permissions are not needed. The
+fix is confined to GDK; the OpenGL renderer retains its translucent polygon
+fill, and exporters retain filled copper.
 
 For an independent relocation check, copy the app outside the workspace.
 Both the app and test directory must be outside the blocked workspace:

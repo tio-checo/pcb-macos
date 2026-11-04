@@ -1,21 +1,29 @@
---- a/src/draw.c
-+++ b/src/draw.c
-@@ -1131,10 +1131,14 @@
-                                   PCB->MaxWidth, PCB->MaxHeight);
-       }
-   }
--  info.fill = 1;
--
--  /* fill the polys */
--  r_search (Layer->polygon_tree, screen, NULL, poly_callback, &info);
-+  /* The GUI's first pass already draws polygon outlines in thin modes.
-+   * Keep filled copper for exporters regardless of saved display flags. */
-+  if (!gui->gui ||
-+      !(TEST_FLAG (THINDRAWFLAG, PCB) || TEST_FLAG (THINDRAWPOLYFLAG, PCB)))
-+    {
-+      info.fill = 1;
-+      r_search (Layer->polygon_tree, screen, NULL, poly_callback, &info);
-+    }
- 
+--- a/src/hid/gtk/gtkhid-gdk.c
++++ b/src/hid/gtk/gtkhid-gdk.c
+@@ -1090,12 +1090,26 @@
+     draw_dozen_cross (xor_gc, x, y);
  }
  
++/* GDK has no translucent polygon fill. The first drawing pass already
++ * draws outlines in thin modes; suppress the later opaque fill here only.
++ * OpenGL keeps its own translucent fill, and exporters keep filled copper. */
++static void
++ghid_gdk_fill_pcb_polygon (hidGC gc, PolygonType *poly, const BoxType *clip_box)
++{
++  if (TEST_FLAG (THINDRAWFLAG, PCB) || TEST_FLAG (THINDRAWPOLYFLAG, PCB))
++    return;
++
++  common_fill_pcb_polygon (gc, poly, clip_box);
++}
++
+ void
+ ghid_init_renderer (int *argc, char ***argv, GHidPort *port)
+ {
+   /* Init any GC's required */
+   port->render_priv = g_new0 (render_priv, 1);
+   port->render_priv->crosshair_gc = gui->graphics->make_gc ();
++
++  ghid_graphics.fill_pcb_polygon = ghid_gdk_fill_pcb_polygon;
+ }
+ 
+ void

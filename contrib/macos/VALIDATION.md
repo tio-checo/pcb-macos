@@ -118,7 +118,7 @@ Six macOS-only patches are applied to the archived build snapshot: a runtime
 locale directory, a separate PCB settings profile, import child-process
 status checking, GTK final cleanup so File → Quit saves preferences, and safe
 handling of an unset custom library preference, and polygon fill suppression
-in GUI thin draw modes. Bundle helper scripts are also
+in the GDK renderer's thin draw modes. Bundle helper scripts are also
 adjusted for spaces in paths and bundled GNU m4. The original upstream C files
 remain unchanged in the checkout.
 
@@ -136,10 +136,13 @@ loaded and exported to PNG successfully.
 
 ## Thin polygon drawing
 
-The final polygon-fill pass in DrawLayer() ignored GUI thin draw flags and
-filled polygons again after their outlines had been drawn. Patch 0006 skips
-this final fill in GUI Thin Draw Poly and Thin Draw modes. Exporters continue
-to fill polygons independently of the saved display flags.
+The final polygon-fill pass in DrawLayer() filled polygons again after their
+outlines had been drawn. OpenGL deliberately renders this fill with 25% opacity
+in thin modes, but GDK rendered it opaque. Patch 0006 installs a polygon-fill
+callback only in the GDK renderer: it skips the opaque fill in Thin Draw Poly
+and Thin Draw modes. Shared DrawLayer(), the OpenGL renderer and exporters
+remain unchanged; OpenGL retains its translucent fill and exporters retain
+filled copper independently of the saved display flags.
 
 `test-thin-draw.py` uses a generated public fixture and the GTK renderer's
 offscreen pixmap to compare actual pixels. It checks polygon interiors and
@@ -153,3 +156,11 @@ board-preservation and Gerber checks, plus 25 editor checks, three upstream
 unit checks and the audit of 75 native arm64 images. The installed app passed
 the 16 rendering checks and bundle audit again. User designs and settings were
 not used by these tests.
+
+The GDK-only revision was also validated on 4 November 2026: all six patches
+apply with zero fuzz, and shared DrawLayer(), common draw helpers and the
+OpenGL renderer remain byte-identical to the upstream snapshot. The rebuilt
+GDK app passed all 16 rendering/Gerber checks, 25 editor checks, three upstream
+unit checks and the 75-image bundle audit. Both local application copies were
+updated and the installed copy passed the bundle audit. OpenGL was checked
+for unchanged source, but was not built or run in this Quartz environment.
