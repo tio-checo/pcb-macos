@@ -114,11 +114,12 @@ The complete upstream image regression suite was not run; the selected text case
 Finder document association is not configured. The old `~/.pcb` settings
 are not imported automatically.
 
-Six macOS-only patches are applied to the archived build snapshot: a runtime
+Seven macOS-only patches are applied to the archived build snapshot: a runtime
 locale directory, a separate PCB settings profile, import child-process
 status checking, GTK final cleanup so File → Quit saves preferences, and safe
 handling of an unset custom library preference, and polygon fill suppression
-in the GDK renderer's thin draw modes. Bundle helper scripts are also
+in the GDK renderer's thin draw modes, plus a Lepton-style GTK recent-file
+menu with isolated persistent history. Bundle helper scripts are also
 adjusted for spaces in paths and bundled GNU m4. The original upstream C files
 remain unchanged in the checkout.
 
@@ -164,3 +165,30 @@ GDK app passed all 16 rendering/Gerber checks, 25 editor checks, three upstream
 unit checks and the 75-image bundle audit. Both local application copies were
 updated and the installed copy passed the bundle audit. OpenGL was checked
 for unchanged source, but was not built or run in this Quartz environment.
+
+## Open Recent menu
+
+Patch 0007 adds File → Open Recent using the same GtkRecentChooserMenu
+component and defaults as Lepton EDA: ten numbered entries, MRU sorting,
+full-path tooltips and a filter for PCB layouts. The menu calls LoadFrom with
+a separate filename argument, preserving literal paths and the existing
+unsaved-layout confirmation. Successful loads and Save As update a dedicated
+GtkRecentManager in XDG_DATA_HOME/recently-used.xbel. An explicit filename
+prevents GTK2 from migrating the user's legacy ~/.recently-used.xbel. Pending
+writes are delivered on Quit, including startup actions before gtk_main().
+
+The test-only recent-menu.c module activates real GTK menu items without
+accessibility automation. test-recent-files.py uses generated profiles and
+copies of the public LED board; no private designs or ordinary user settings
+are used.
+
+Validated on 4 November 2026: all 27 menu/history checks passed on the new
+standalone app and again on /Applications/PCB.app. This includes empty and
+filtered menus, literal Unicode/quoted paths, real menu activation,
+confirmation/cancel with unsaved edits, failed loads, paste-buffer exclusion,
+ten-entry limit, MRU promotion without duplicates, Save As, restart and
+profile isolation, deleted files, command-line startup and immediate
+Save As + Quit before gtk_main(). The old HOME history and public source
+fixture remained untouched. The app also passed 25 editor checks, all three
+upstream unit checks and the 75-image bundle audit; the installed copy passed
+the audit again. No GTK critical errors were reported.

@@ -203,6 +203,28 @@ preferences after normal exit, and compares actual Quartz window dimensions
 after restart. It needs the macOS graphical session and Command Line Tools;
 it does not use accessibility or modify the normal user profile.
 
+The File → Open Recent submenu matches Lepton EDA: ten numbered boards,
+most recently used first, with full paths in tooltips. Successful opens
+(including the command line) and Save As update the list. Choosing an entry
+uses the same unsaved-layout confirmation as File → Open. The GTK history is
+stored in `~/Library/Application Support/PCB-Quartz/data/recently-used.xbel`
+and survives restarts. It is separate from Lepton's history and does not
+migrate an existing `~/.recently-used.xbel`. Paste-buffer loads and failed
+opens are excluded.
+
+Check the actual GTK recent-file menu in disposable profiles:
+
+```sh
+/usr/bin/python3 contrib/macos/scripts/test-recent-files.py --app ../dist/PCB.app
+```
+
+The test-only GTK module inspects and activates real menu entries, including
+paths with spaces, Unicode, quotes and commas. It checks confirmation/cancel,
+MRU ordering, limits, filtering, Save As, restart persistence, deleted files,
+profile isolation and an immediate Save As followed by Quit. It needs the
+GTK2 development headers and Command Line Tools; it does not use accessibility
+or change the normal profile. The test module is never a runtime dependency.
+
 Check Thin Draw Poly and Thin Draw using actual GTK/GDK renderer pixels:
 
 ```sh

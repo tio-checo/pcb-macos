@@ -1,0 +1,177 @@
+--- a/src/gpcb-menu.res.in
++++ b/src/gpcb-menu.res.in
+@@ -55,6 +55,7 @@
+   {"File" m=F
+    {"New" New() a={"Ctrl-N" "Ctrl<Key>n"}}
+    {"Open..." Load(Layout) tip="Load a layout from a file"}
++   @recentfiles
+    -
+    {"Save" Save(Layout) tip="Saves current layout" m=S a={"Ctrl-S" "Ctrl<Key>s"}}
+    {"Save As..." Save(LayoutAs) tip="Saves current layout into a new file" m=A a={"Shift Ctrl-S" "Shift Ctrl<Key>s"}}
+--- a/src/hid/gtk/ghid-main-menu.c
++++ b/src/hid/gtk/ghid-main-menu.c
+@@ -83,6 +83,105 @@
+ /* TODO: write finalize function */
+ 
+ /* SIGNAL HANDLERS */
++
++/* Match Lepton's GTK recent-file menu, while keeping PCB's profile separate.
++ * An explicit filename also avoids GTK2's migration of ~/.recently-used.xbel. */
++static GtkRecentManager *recent_manager;
++
++static GtkRecentManager *
++ghid_recent_manager (void)
++{
++  if (recent_manager == NULL)
++    {
++      gchar *filename;
++      g_mkdir_with_parents (g_get_user_data_dir (), 0700);
++      filename = g_build_filename (g_get_user_data_dir (), "recently-used.xbel", NULL);
++      recent_manager = g_object_new (GTK_TYPE_RECENT_MANAGER,
++                                    "filename", filename, NULL);
++      g_free (filename);
++    }
++  return recent_manager;
++}
++
++void
++ghid_recent_add_file (const char *filename)
++{
++  gchar *absolute, *uri, *launcher, *quoted, *command;
++  const gchar *resources = g_getenv ("PCB_BUNDLE_RESOURCES");
++  GtkRecentData data = { 0 };
++
++  if (filename == NULL || !g_file_test (filename, G_FILE_TEST_IS_REGULAR))
++    return;
++
++  absolute = g_canonicalize_filename (filename, NULL);
++  uri = g_filename_to_uri (absolute, NULL, NULL);
++  g_free (absolute);
++  if (uri == NULL)
++    return;
++
++  launcher = resources ? g_build_filename (resources, "..", "MacOS", "PCB", NULL)
++                       : g_strdup ("pcb");
++  quoted = g_shell_quote (launcher);
++  command = g_strconcat (quoted, " %f", NULL);
++  data.mime_type = "application/x-pcb-layout";
++  data.app_name = "PCB";
++  data.app_exec = command;
++  gtk_recent_manager_add_full (ghid_recent_manager (), uri, &data);
++  g_free (command);
++  g_free (quoted);
++  g_free (launcher);
++  g_free (uri);
++}
++
++void
++ghid_recent_files_flush (void)
++{
++  /* The core's Quit() exits directly. Deliver GTK's pending write before exit,
++   * including a Save As immediately followed by Quit(). */
++  if (recent_manager != NULL)
++    g_signal_emit_by_name (recent_manager, "changed");
++}
++
++static void
++ghid_recent_file_activated (GtkRecentChooser *chooser, gpointer unused)
++{
++  gchar *uri = gtk_recent_chooser_get_current_uri (chooser);
++  gchar *filename = uri ? g_filename_from_uri (uri, NULL, NULL) : NULL;
++  (void) unused;
++
++  if (filename != NULL)
++    {
++      /* Use the normal open action, including its unsaved-layout confirmation.
++       * Pass a separate argument so quotes, spaces and commas remain literal. */
++      hid_actionl ("LoadFrom", "Layout", filename, NULL);
++      ghid_update_toggle_flags ();
++      ghid_mode_buttons_update ();
++      ghid_invalidate_all ();
++    }
++  g_free (filename);
++  g_free (uri);
++}
++
++static void
++ghid_recent_menu_append (GtkMenuShell *shell)
++{
++  GtkWidget *item = gtk_menu_item_new_with_mnemonic (_("Open Recen_t"));
++  GtkWidget *chooser = gtk_recent_chooser_menu_new_for_manager (ghid_recent_manager ());
++  GtkRecentFilter *filter = gtk_recent_filter_new ();
++
++  gtk_recent_filter_add_mime_type (filter, "application/x-pcb-layout");
++  gtk_recent_filter_add_pattern (filter, "*.pcb");
++  gtk_recent_chooser_add_filter (GTK_RECENT_CHOOSER (chooser), filter);
++  gtk_recent_chooser_set_show_tips (GTK_RECENT_CHOOSER (chooser), TRUE);
++  gtk_recent_chooser_set_sort_type (GTK_RECENT_CHOOSER (chooser), GTK_RECENT_SORT_MRU);
++  gtk_recent_chooser_set_limit (GTK_RECENT_CHOOSER (chooser), 10);
++  gtk_recent_chooser_set_local_only (GTK_RECENT_CHOOSER (chooser), FALSE);
++  gtk_recent_chooser_menu_set_show_numbers (GTK_RECENT_CHOOSER_MENU (chooser), TRUE);
++  g_signal_connect (chooser, "item-activated",
++                    G_CALLBACK (ghid_recent_file_activated), NULL);
++  gtk_menu_item_set_submenu (GTK_MENU_ITEM (item), chooser);
++  gtk_menu_shell_append (shell, item);
++}
+ 
+ /* RESOURCE HANDLER */
+ 
+@@ -391,7 +490,9 @@
+               pos = g_list_length (children);
+               g_list_free (children);
+ 
+-              if (strcmp (res->v[i].value, "@layerview") == 0)
++              if (strcmp (res->v[i].value, "@recentfiles") == 0)
++                ghid_recent_menu_append (shell);
++              else if (strcmp (res->v[i].value, "@layerview") == 0)
+                 {
+                   menu->layer_view_shell = shell;
+                   menu->layer_view_pos = pos;
+--- a/src/hid/gtk/ghid-main-menu.h
++++ b/src/hid/gtk/ghid-main-menu.h
+@@ -52,6 +52,9 @@
+ typedef struct _GHidMainMenu       GHidMainMenu;
+ typedef struct _GHidMainMenuClass  GHidMainMenuClass;
+ 
++void ghid_recent_add_file (const char *filename);
++void ghid_recent_files_flush (void);
++
+ GType ghid_main_menu_get_type (void);
+ GtkWidget *ghid_main_menu_new (GCallback action_cb,
+                                void (*special_key_cb) (const char *accel,
+--- a/src/hid/gtk/gui-top-window.c
++++ b/src/hid/gtk/gui-top-window.c
+@@ -438,6 +438,7 @@
+   ghid_set_status_line_label ();
+   close_file_modified_externally_prompt ();
+   update_board_mtime_from_disk ();
++  ghid_recent_add_file (PCB->Filename);
+ }
+ 
+ void
+@@ -457,6 +458,7 @@
+ {
+   /* Pick up the mtime of the new PCB file */
+   update_board_mtime_from_disk ();
++  ghid_recent_add_file (PCB->Filename);
+ }
+ 
+ /*!
+@@ -1877,6 +1879,7 @@
+ ghid_do_export (HID_Attr_Val * options)
+ {
+   ghid_create_pcb_widgets ();
++  ghid_recent_add_file (PCB->Filename);
+ 
+   /* These are needed to make sure the @layerpick and @layerview menus
+    * are properly initialized and synchronized with the current PCB.
+--- a/src/hid/gtk/gtkhid-main.c
++++ b/src/hid/gtk/gtkhid-main.c
+@@ -2286,6 +2286,7 @@
+ {
+   (void) hid;
+   ghid_config_files_write ();
++  ghid_recent_files_flush ();
+ }
+ 
+ void
