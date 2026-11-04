@@ -1,0 +1,21 @@
+--- a/src/draw.c
++++ b/src/draw.c
+@@ -1131,10 +1131,14 @@
+                                   PCB->MaxWidth, PCB->MaxHeight);
+       }
+   }
+-  info.fill = 1;
+-
+-  /* fill the polys */
+-  r_search (Layer->polygon_tree, screen, NULL, poly_callback, &info);
++  /* The GUI's first pass already draws polygon outlines in thin modes.
++   * Keep filled copper for exporters regardless of saved display flags. */
++  if (!gui->gui ||
++      !(TEST_FLAG (THINDRAWFLAG, PCB) || TEST_FLAG (THINDRAWPOLYFLAG, PCB)))
++    {
++      info.fill = 1;
++      r_search (Layer->polygon_tree, screen, NULL, poly_callback, &info);
++    }
+ 
+ }
+ 

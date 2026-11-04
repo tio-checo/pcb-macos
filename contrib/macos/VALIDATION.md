@@ -114,10 +114,11 @@ The complete upstream image regression suite was not run; the selected text case
 Finder document association is not configured. The old `~/.pcb` settings
 are not imported automatically.
 
-Five macOS-only patches are applied to the archived build snapshot: a runtime
+Six macOS-only patches are applied to the archived build snapshot: a runtime
 locale directory, a separate PCB settings profile, import child-process
 status checking, GTK final cleanup so File → Quit saves preferences, and safe
-handling of an unset custom library preference. Bundle helper scripts are also
+handling of an unset custom library preference, and polygon fill suppression
+in GUI thin draw modes. Bundle helper scripts are also
 adjusted for spaces in paths and bundled GNU m4. The original upstream C files
 remain unchanged in the checkout.
 
@@ -132,3 +133,23 @@ and configured library settings through `test-preferences.py`. The test uses
 disposable profiles and the same `DoWindows(Preferences)` action as the menu;
 it does not validate all dialog interactions. The public LED board also
 loaded and exported to PNG successfully.
+
+## Thin polygon drawing
+
+The final polygon-fill pass in DrawLayer() ignored GUI thin draw flags and
+filled polygons again after their outlines had been drawn. Patch 0006 skips
+this final fill in GUI Thin Draw Poly and Thin Draw modes. Exporters continue
+to fill polygons independently of the saved display flags.
+
+`test-thin-draw.py` uses a generated public fixture and the GTK renderer's
+offscreen pixmap to compare actual pixels. It checks polygon interiors and
+outlines, trace width, restoration after toggling, unchanged board data and
+filled Gerber regions. The capture module is test-only and is never included
+as a runtime dependency of the application.
+
+Validated on 4 November 2026: the old app reproduced the filled polygon with
+the thin flag enabled. The updated standalone app passed all 16 GTK pixel,
+board-preservation and Gerber checks, plus 25 editor checks, three upstream
+unit checks and the audit of 75 native arm64 images. The installed app passed
+the 16 rendering checks and bundle audit again. User designs and settings were
+not used by these tests.
