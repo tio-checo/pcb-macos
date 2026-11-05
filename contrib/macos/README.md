@@ -261,3 +261,17 @@ See [VALIDATION.md](VALIDATION.md) for the scope and remaining limitations.
 
 For the separate GTK2/Quartz OpenGL application, private SDK preparation and
 renderer tests, see [OPENGL.md](OPENGL.md).
+
+## Routing setting shortcuts
+
+The GTK menu provides these toggles, with their shortcuts shown beside each
+setting in the Settings menu:
+
+| Setting | Shortcut |
+| --- | --- |
+| Auto enforce DRC clearance | Shift+A |
+| Crosshair snaps to pins and pads | Shift+X |
+| New lines, arcs clear polygons | Shift+C |
+
+The plain A (Set Same), S (ChangeSize) and C (Center) bindings are unchanged.
+Each shortcut toggles the corresponding setting on or off.

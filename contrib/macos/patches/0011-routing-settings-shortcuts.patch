@@ -1,0 +1,23 @@
+--- a/src/gpcb-menu.res.in
++++ b/src/gpcb-menu.res.in
+@@ -210,9 +210,9 @@
+    {"'All-direction' lines" checked=alldirection Display(Toggle45Degree) a={"." "<Key>."}}
+    {"Auto swap line start angle" checked=swapstartdir Display(ToggleStartDirection)}
+    {"Orthogonal moves" checked=orthomove Display(ToggleOrthoMove)}
+-   {"Crosshair snaps to pins and pads" checked=snappin Display(ToggleSnapPin)}
++   {"Crosshair snaps to pins and pads" checked=snappin Display(ToggleSnapPin) a={"Shift-X" "Shift<Key>x"}}
+    {"Crosshair shows DRC clearance" checked=showdrc Display(ToggleShowDRC)}
+-   {"Auto enforce DRC clearance" checked=autodrc Display(ToggleAutoDRC)}
++   {"Auto enforce DRC clearance" checked=autodrc Display(ToggleAutoDRC) a={"Shift-A" "Shift<Key>a"}}
+    {"Lock Names" checked=locknames Display(ToggleLockNames)}
+    {"Only Names" checked=onlynames Display(ToggleOnlyNames)}
+    {"Hide Names" checked=hidenames Display(ToggleHideNames)}
+@@ -220,7 +220,7 @@
+    {"Rubber band mode" checked=rubberband Display(ToggleRubberBandMode)}
+    {"Require unique element names" checked=uniquename Display(ToggleUniqueNames)}
+    {"Auto-zero delta measurements" checked=localref Display(ToggleLocalRef)}
+-   {"New lines, arcs clear polygons" checked=clearnew Display(ToggleClearLine)}
++   {"New lines, arcs clear polygons" checked=clearnew Display(ToggleClearLine) a={"Shift-C" "Shift<Key>c"}}
+    {"New polygons are full ones" checked=newfullpoly Display(ToggleFullPoly)}
+    {"Show autorouter trials" checked=liveroute Display(ToggleLiveRoute)}
+    {"Thin draw" checked=thindraw Display(ToggleThindraw) a={"|" "<Key>|"}}
