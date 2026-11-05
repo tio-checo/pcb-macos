@@ -1,0 +1,33 @@
+--- a/src/hid/gtk/gui-output-events.c
++++ b/src/hid/gtk/gui-output-events.c
+@@ -127,8 +127,7 @@
+ 
+   if (!ev)
+     {
+-      gdk_window_get_pointer (gtk_widget_get_window (ghid_port.drawing_area),
+-                              &event_x, &event_y, NULL);
++      ghid_get_pointer (&event_x, &event_y);
+     }
+   else
+     {
+--- a/src/hid/gtk/gui-misc.c
++++ b/src/hid/gtk/gui-misc.c
+@@ -388,8 +388,18 @@
+ {
+   gint xp, yp;
+ 
++#if defined (GDK_WINDOWING_QUARTZ) && defined (ENABLE_GL)
++  GtkWidget *top = gtk_widget_get_toplevel (gport->drawing_area);
++  /* GTK2/Quartz queries the native child's pointer in top-level coordinates.
++   * Query that top-level explicitly, then translate into drawing-area pixels,
++   * matching motion/button events even after allocation or window movement. */
++  gdk_window_get_pointer (gtk_widget_get_window (top), &xp, &yp, NULL);
++  gtk_widget_translate_coordinates (top, gport->drawing_area,
++                                     xp, yp, &xp, &yp);
++#else
+   gdk_window_get_pointer (gtk_widget_get_window (gport->drawing_area),
+                           &xp, &yp, NULL);
++#endif
+   if (x)
+     *x = xp;
+   if (y)

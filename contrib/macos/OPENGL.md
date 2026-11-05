@@ -86,6 +86,13 @@ and saves an AppKit snapshot of the remaining GTK controls. AppKit snapshots
 show the GPU canvas as black; its actual board pixels are captured separately
 from the OpenGL front buffer.
 
+`0010-quartz-opengl-pointer-coordinates.patch` translates pointer queries from
+the top-level window into drawing-area coordinates on Quartz/OpenGL. GTK2's
+native-child pointer query otherwise returns top-level coordinates, so pressing
+or releasing Ctrl/Shift offsets the crosshair by the canvas position. Motion
+and button events already use drawing-area coordinates. The GDK renderer and
+non-Quartz pointer queries retain their existing behavior.
+
 ## Validation
 
 Set `PKG_CONFIG_LIBDIR` to the GtkGLExt and GTK SDK `lib/pkgconfig` directories,
@@ -95,6 +102,7 @@ when compiling the test-only GTK modules. For example on macOS 26:
 ```sh
 export PKG_CONFIG_LIBDIR="$PWD/../build/deps/gtkglext-sdk/gtkglext/1.2.0_4/lib/pkgconfig:$PWD/../build/deps/gtk-sdk/gtk+/2.24.33_2/lib/pkgconfig:/opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/libffi/lib/pkgconfig:/opt/homebrew/Library/Homebrew/os/mac/pkgconfig/26"
 python3 contrib/macos/scripts/check-opengl.py --app ../dist/PCB-OpenGL.app
+python3 contrib/macos/scripts/test-pointer.py --app ../dist/PCB-OpenGL.app
 python3 contrib/macos/scripts/test-thin-draw.py --app ../dist/PCB-OpenGL.app
 python3 contrib/macos/scripts/test-editor.py --app ../dist/PCB-OpenGL.app
 python3 contrib/macos/scripts/test-window-size.py --app ../dist/PCB-OpenGL.app
@@ -112,3 +120,7 @@ checks do not measure frame rate or replace manual testing on large boards.
 
 OpenGL on macOS is a legacy API. This variant remains experimental pending
 comparison of interaction, performance and stability with the GDK build.
+
+`test-pointer.py` compares pointer queries with native AppKit coordinates and
+motion events, then checks left/right Ctrl and Shift press, hold and release
+before and after resizing and moving the window. It also accepts the GDK app.
