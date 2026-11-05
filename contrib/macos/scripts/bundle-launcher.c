@@ -9,6 +9,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef PCB_PROFILE_DIR
+#define PCB_PROFILE_DIR "Library/Application Support/PCB-Quartz"
+#endif
 extern char **environ;
 static char resources[PATH_MAX], profile[PATH_MAX];
 
@@ -94,7 +97,7 @@ int main(int argc, char **argv) {
   if (override && override[0] == '/') {
     if (strlen(override) >= sizeof profile) return 2;
     strcpy(profile, override);
-  } else if (pw) join(profile, pw->pw_dir, "Library/Application Support/PCB-Quartz");
+  } else if (pw) join(profile, pw->pw_dir, PCB_PROFILE_DIR);
   else return 2;
   char home[PATH_MAX];
   const char *requested_home = getenv("HOME");

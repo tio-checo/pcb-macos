@@ -1,0 +1,93 @@
+--- a/src/hid/gtk/gtkhid-gl.c
++++ b/src/hid/gtk/gtkhid-gl.c
+@@ -35,6 +35,14 @@
+ 
+ #include "hid/common/draw_helpers.h"
+ #include "hid/common/trackball.h"
++
++#ifdef GDK_WINDOWING_QUARTZ
++#include <CoreGraphics/CoreGraphics.h>
++#include <objc/message.h>
++#include <objc/runtime.h>
++/* gdkquartz.h includes Objective-C AppKit headers, so declare its C ABI here. */
++extern id gdk_quartz_window_get_nsview (GdkWindow *window);
++#endif
+ 
+ #ifdef HAVE_LIBDMALLOC
+ #include <dmalloc.h>
+@@ -830,11 +838,75 @@
+   port->render_priv = NULL;
+ }
+ 
++#ifdef GDK_WINDOWING_QUARTZ
++static void
++ghid_quartz_gl_sync_view (GtkWidget *widget)
++{
++  GtkWidget *top;
++  GdkWindow *window = gtk_widget_get_window (widget);
++  id view, root, parent;
++  gint x = 0, y = 0;
++  CGRect frame;
++
++  if (window == NULL)
++    return;
++  if (!gdk_window_ensure_native (window))
++    g_error ("Cannot create a native Quartz OpenGL drawing area");
++  top = gtk_widget_get_toplevel (widget);
++  view = (id) gdk_quartz_window_get_nsview (window);
++  root = (id) gdk_quartz_window_get_nsview (gtk_widget_get_window (top));
++  gtk_widget_translate_coordinates (widget, top, 0, 0, &x, &y);
++  frame = CGRectMake (x, y, widget->allocation.width, widget->allocation.height);
++  parent = ((id (*)(id, SEL)) objc_msgSend) (view, sel_registerName ("superview"));
++  if (parent != root)
++    {
++#ifdef __aarch64__
++      frame = ((CGRect (*)(id, SEL, CGRect, id)) objc_msgSend)
++        (root, sel_registerName ("convertRect:toView:"), frame, parent);
++#else
++      ((void (*)(CGRect *, id, SEL, CGRect, id)) objc_msgSend_stret)
++        (&frame, root, sel_registerName ("convertRect:toView:"), frame, parent);
++#endif
++    }
++  /* Quartz's legacy native child windows can retain their initial 1x1
++   * NSView frame after GTK allocation. Keep the OpenGL drawable aligned
++   * with its widget; never attach it to the top-level view. */
++  ((void (*)(id, SEL, CGRect)) objc_msgSend)
++    (view, sel_registerName ("setFrame:"), frame);
++}
++
++static gboolean
++ghid_quartz_gl_configure (GtkWidget *widget, GdkEventConfigure *event,
++                          gpointer unused)
++{
++  (void) event;
++  (void) unused;
++  ghid_quartz_gl_sync_view (widget);
++  return FALSE;
++}
++
++static void
++ghid_quartz_gl_allocate (GtkWidget *widget, GtkAllocation *allocation,
++                         gpointer unused)
++{
++  (void) allocation;
++  (void) unused;
++  ghid_quartz_gl_sync_view (widget);
++}
++#endif
++
+ void
+ ghid_init_drawing_widget (GtkWidget *widget, GHidPort *port)
+ {
+   render_priv *priv = port->render_priv;
+ 
++#ifdef GDK_WINDOWING_QUARTZ
++  /* GtkDrawingArea emits configure-event during its realize class handler,
++   * before ordinary realize callbacks. Connect before GtkGLExt so it caches
++   * the dedicated native child view from the very first configure event. */
++  g_signal_connect (widget, "configure-event", G_CALLBACK (ghid_quartz_gl_configure), NULL);
++  g_signal_connect (widget, "size-allocate", G_CALLBACK (ghid_quartz_gl_allocate), NULL);
++#endif
+   gtk_widget_set_gl_capability (widget,
+                                 priv->glconfig,
+                                 NULL,

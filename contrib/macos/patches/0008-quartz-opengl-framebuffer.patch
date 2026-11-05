@@ -1,0 +1,236 @@
+--- a/src/hid/common/hidgl.h
++++ b/src/hid/common/hidgl.h
+@@ -25,6 +25,9 @@
+ 
+ #ifdef WIN32
+ #define _GLUfuncptr void *
++#elif defined(__APPLE__)
++/* Apple GLU declares callbacks without defining the Linux _GLUfuncptr. */
++#define _GLUfuncptr void (*)(void)
+ #endif
+ 
+ #define TRIANGLE_ARRAY_SIZE 5461
+--- a/src/hid/gtk/gtkhid-gl.c
++++ b/src/hid/gtk/gtkhid-gl.c
+@@ -26,6 +26,8 @@
+ #  include <GL/gl.h>
+ #elif defined HAVE_OPENGL_GL_H
+ #  include <OpenGL/gl.h>
++#  include <OpenGL/glext.h>
++#  include <OpenGL/OpenGL.h>
+ #else
+ #  error autoconf couldnt find gl.h
+ #endif
+@@ -1204,9 +1206,17 @@
+ GdkPixmap *
+ ghid_render_pixmap (int cx, int cy, double zoom, int width, int height, int depth)
+ {
++#ifdef GDK_WINDOWING_QUARTZ
++  CGLContextObj previous_context;
++  GLuint framebuffer = 0, colorbuffer = 0, stencilbuffer = 0;
++  GLint previous_framebuffer, previous_renderbuffer, previous_matrix_mode;
++  GdkPixbuf *pixels = NULL;
++  gboolean was_in_context = gport->render_priv->in_context;
++#else
+   GdkGLConfig *glconfig;
+-  GdkPixmap *pixmap;
+   GdkGLPixmap *glpixmap;
++#endif
++  GdkPixmap *pixmap = NULL;
+   GdkGLContext* glcontext;
+   GdkGLDrawable* gldrawable;
+   view_data save_view;
+@@ -1220,6 +1230,59 @@
+   /* Setup rendering context for drawing routines
+    */
+ 
++#ifdef GDK_WINDOWING_QUARTZ
++  /* Quartz GtkGLExt accepts GLPixmap creation but does not provide a
++   * complete drawable framebuffer. Render in an FBO in the window context
++   * instead, then copy RGB pixels into an ordinary GdkPixmap for GTK. */
++  if (width <= 0 || height <= 0)
++    return NULL;
++  previous_context = CGLGetCurrentContext ();
++  if (previous_context != NULL)
++    CGLRetainContext (previous_context);
++  glcontext = gtk_widget_get_gl_context (gport->drawing_area);
++  gldrawable = gtk_widget_get_gl_drawable (gport->drawing_area);
++  if (glcontext == NULL || gldrawable == NULL ||
++      !gdk_gl_drawable_gl_begin (gldrawable, glcontext))
++    {
++      if (previous_context != NULL)
++        CGLReleaseContext (previous_context);
++      return NULL;
++    }
++
++  glGetIntegerv (GL_FRAMEBUFFER_BINDING_EXT, &previous_framebuffer);
++  glGetIntegerv (GL_RENDERBUFFER_BINDING_EXT, &previous_renderbuffer);
++  glGetIntegerv (GL_MATRIX_MODE, &previous_matrix_mode);
++  glPushAttrib (GL_ALL_ATTRIB_BITS);
++  glPushClientAttrib (GL_CLIENT_ALL_ATTRIB_BITS);
++  glMatrixMode (GL_PROJECTION);
++  glPushMatrix ();
++  glMatrixMode (GL_MODELVIEW);
++  glPushMatrix ();
++
++  glGenFramebuffersEXT (1, &framebuffer);
++  glBindFramebufferEXT (GL_FRAMEBUFFER_EXT, framebuffer);
++  glGenRenderbuffersEXT (1, &colorbuffer);
++  glBindRenderbufferEXT (GL_RENDERBUFFER_EXT, colorbuffer);
++  glRenderbufferStorageEXT (GL_RENDERBUFFER_EXT, GL_RGBA8, width, height);
++  glFramebufferRenderbufferEXT (GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
++                                GL_RENDERBUFFER_EXT, colorbuffer);
++  glGenRenderbuffersEXT (1, &stencilbuffer);
++  glBindRenderbufferEXT (GL_RENDERBUFFER_EXT, stencilbuffer);
++  glRenderbufferStorageEXT (GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT,
++                            width, height);
++  glFramebufferRenderbufferEXT (GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
++                                GL_RENDERBUFFER_EXT, stencilbuffer);
++  glFramebufferRenderbufferEXT (GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT,
++                                GL_RENDERBUFFER_EXT, stencilbuffer);
++  if (glCheckFramebufferStatusEXT (GL_FRAMEBUFFER_EXT) != GL_FRAMEBUFFER_COMPLETE_EXT)
++    {
++      g_warning ("Cannot create OpenGL preview framebuffer");
++      goto quartz_cleanup;
++    }
++  glReadBuffer (GL_COLOR_ATTACHMENT0_EXT);
++  glDrawBuffer (GL_COLOR_ATTACHMENT0_EXT);
++#else
++
+   glconfig = gdk_gl_config_new_by_mode (GDK_GL_MODE_RGB     |
+                                         GDK_GL_MODE_STENCIL |
+                                         GDK_GL_MODE_SINGLE);
+@@ -1228,6 +1291,16 @@
+   glpixmap = gdk_pixmap_set_gl_capability (pixmap, glconfig, NULL);
+   gldrawable = GDK_GL_DRAWABLE (glpixmap);
+   glcontext = gdk_gl_context_new (gldrawable, NULL, TRUE, GDK_GL_RGBA_TYPE);
++
++  if (!gdk_gl_drawable_gl_begin (gldrawable, glcontext))
++    {
++      gdk_pixmap_unset_gl_capability (pixmap);
++      g_object_unref (glconfig);
++      g_object_unref (glcontext);
++      g_object_unref (pixmap);
++      return NULL;
++    }
++#endif
+ 
+   /* Setup zoom factor for drawing routines */
+ 
+@@ -1237,14 +1310,10 @@
+   gport->view.width = width * gport->view.coord_per_px;
+   gport->view.height = height * gport->view.coord_per_px;
+   gport->view.x0 = gport->view.flip_x ? PCB->MaxWidth - cx : cx;
+-  gport->view.x0 -= gport->view.height / 2;
++  gport->view.x0 -= gport->view.width / 2;
+   gport->view.y0 = gport->view.flip_y ? PCB->MaxHeight - cy : cy;
+-  gport->view.y0 -= gport->view.width / 2;
+-
+-  /* make GL-context "current" */
+-  if (!gdk_gl_drawable_gl_begin (gldrawable, glcontext)) {
+-    return NULL;
+-  }
++  gport->view.y0 -= gport->view.height / 2;
++
+   hidgl_start_render ();
+   gport->render_priv->in_context = true;
+ 
+@@ -1306,6 +1375,58 @@
+ 
+   hidgl_finish_render ();
+ 
++#ifdef GDK_WINDOWING_QUARTZ
++  pixels = gdk_pixbuf_new (GDK_COLORSPACE_RGB, FALSE, 8, width, height);
++  if (pixels != NULL)
++    {
++      GdkPixbuf *flipped;
++      GdkGC *gc;
++      glPixelStorei (GL_PACK_ALIGNMENT, 1);
++      /* GdkPixbuf row padding is not necessarily divisible by three. Read
++       * each row explicitly so arbitrary DRC preview widths remain valid. */
++      glPixelStorei (GL_PACK_ROW_LENGTH, 0);
++      glPixelStorei (GL_PACK_SKIP_ROWS, 0);
++      glPixelStorei (GL_PACK_SKIP_PIXELS, 0);
++      for (int y = 0; y < height; y++)
++        glReadPixels (0, y, width, 1, GL_RGB, GL_UNSIGNED_BYTE,
++                      gdk_pixbuf_get_pixels (pixels) + y * gdk_pixbuf_get_rowstride (pixels));
++      if (glGetError () == GL_NO_ERROR)
++        {
++          flipped = gdk_pixbuf_flip (pixels, FALSE);
++          pixmap = gdk_pixmap_new (NULL, width, height, depth);
++          gc = gdk_gc_new (pixmap);
++          gdk_draw_pixbuf (pixmap, gc, flipped, 0, 0, 0, 0, width, height,
++                           GDK_RGB_DITHER_NONE, 0, 0);
++          g_object_unref (gc);
++          g_object_unref (flipped);
++        }
++      else
++        g_warning ("Cannot read OpenGL preview pixels");
++      g_object_unref (pixels);
++    }
++
++quartz_cleanup:
++  glBindFramebufferEXT (GL_FRAMEBUFFER_EXT, previous_framebuffer);
++  glBindRenderbufferEXT (GL_RENDERBUFFER_EXT, previous_renderbuffer);
++  glDeleteFramebuffersEXT (1, &framebuffer);
++  glDeleteRenderbuffersEXT (1, &colorbuffer);
++  glDeleteRenderbuffersEXT (1, &stencilbuffer);
++  glMatrixMode (GL_MODELVIEW);
++  glPopMatrix ();
++  glMatrixMode (GL_PROJECTION);
++  glPopMatrix ();
++  glMatrixMode (previous_matrix_mode);
++  glPopClientAttrib ();
++  glPopAttrib ();
++  gport->render_priv->in_context = was_in_context;
++  ghid_invalidate_current_gc ();
++  gdk_gl_drawable_gl_end (gldrawable);
++  /* GtkGLExt Quartz's gdk_gl_context_get_current() always returns NULL.
++   * Preserve the native context explicitly, including the no-context case. */
++  CGLSetCurrentContext (previous_context);
++  if (previous_context != NULL)
++    CGLReleaseContext (previous_context);
++#else
+   /* end drawing to current GL-context */
+   gport->render_priv->in_context = false;
+   gdk_gl_drawable_gl_end (gldrawable);
+@@ -1314,6 +1435,7 @@
+ 
+   g_object_unref (glconfig);
+   g_object_unref (glcontext);
++#endif
+ 
+   gport->view = save_view;
+   gport->width = save_width;
+--- a/src/hid/gtk/gui-drc-window.c
++++ b/src/hid/gtk/gui-drc-window.c
+@@ -623,8 +623,11 @@
+ 					      VIOLATION_PIXMAP_PCB_SIZE / pixmap_size,
+ 					      pixmap_size, pixmap_size,
+ 					      gdk_drawable_get_depth (window));
+-      g_object_set (gviolation, "pixmap", pixmap, NULL);
+-      g_object_unref (pixmap);
++      if (pixmap != NULL)
++        {
++          g_object_set (gviolation, "pixmap", pixmap, NULL);
++          g_object_unref (pixmap);
++        }
+     }
+ 
+   if (gviolation->pixmap == NULL)
+--- a/src/hid/gtk/gui-top-window.c
++++ b/src/hid/gtk/gui-top-window.c
+@@ -709,8 +709,13 @@
+   else
+     filename = g_strdup(PCB->Filename);
+ 
++#if defined(GDK_WINDOWING_QUARTZ) && defined(ENABLE_GL)
++  str = g_strdup_printf ("%s%s (%s) - PCB OpenGL (experimental)", PCB->Changed ? "*": "",
++                         ghidgui->name_label_string, filename);
++#else
+   str = g_strdup_printf ("%s%s (%s) - PCB", PCB->Changed ? "*": "",
+                          ghidgui->name_label_string, filename);
++#endif
+   gtk_window_set_title (GTK_WINDOW (gport->top_window), str);
+   g_free (str);
+   g_free (filename);

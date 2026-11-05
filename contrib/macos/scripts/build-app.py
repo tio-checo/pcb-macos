@@ -14,14 +14,21 @@ import tempfile
 SUPPORT = Path(__file__).resolve().parent.parent
 SOURCE_ROOT = SUPPORT.parent.parent
 ROOT = SOURCE_ROOT.parent
-PREFIX = ROOT / 'install/gtk2'
-OUT = ROOT / 'dist/PCB.app'
+VARIANT = os.environ.get('PCB_BUILD_VARIANT', 'gdk')
+if VARIANT not in ('gdk', 'opengl'):
+    raise SystemExit('PCB_BUILD_VARIANT must be gdk or opengl')
+OPENGL = VARIANT == 'opengl'
+GTK_PREFIX = Path(os.environ.get('PCB_GTK_PREFIX', '/opt/homebrew')).resolve()
+PREFIX = ROOT / ('install/opengl' if OPENGL else 'install/gtk2')
+SNAPSHOT = ROOT / ('build/source-opengl' if OPENGL else 'build/source')
+NAME = 'PCB-OpenGL' if OPENGL else 'PCB'
+OUT = ROOT / 'dist' / (NAME + '.app')
 if OUT.exists():
-    raise SystemExit('dist/PCB.app already exists; move it aside before rebuilding')
+    raise SystemExit(str(OUT) + ' already exists; move it aside before rebuilding')
 if subprocess.check_output(['git', '-C', str(SOURCE_ROOT), 'status', '--porcelain']).strip():
     raise SystemExit('The source checkout must be clean')
 commit = subprocess.check_output(['git', '-C', str(SOURCE_ROOT), 'rev-parse', 'HEAD'], text=True).strip()
-if (ROOT / 'build/source/.source-commit').read_text().strip() != commit:
+if (SNAPSHOT / '.source-commit').read_text().strip() != commit:
     raise SystemExit('Build snapshot differs from checkout HEAD; rebuild from a fresh snapshot')
 if b'PCB_BUNDLE_LOCALE_DIR' not in (PREFIX / 'bin/pcb').read_bytes():
     raise SystemExit('Build PCB with the relocatable-locale patch first')
@@ -71,7 +78,7 @@ shutil.copy2(SUPPORT / 'scripts/gnetlist-bridge.sh', RES / 'bin/gnetlist')
 (RES / 'bin/gnetlist').chmod(0o755)
 (CONT / 'share').symlink_to('Resources/share', target_is_directory=True)
 for name in ('Default', 'Raleigh', 'Mac'):
-    tree(Path('/opt/homebrew/share/themes') / name, RES / 'share/themes' / name)
+    tree(GTK_PREFIX / 'share/themes' / name, RES / 'share/themes' / name)
 for name in ('Adwaita', 'hicolor'):
     tree(Path('/opt/homebrew/share/icons') / name, RES / 'share/icons' / name)
 tree('/opt/homebrew/share/mime', RES / 'share/mime')
@@ -82,28 +89,28 @@ fonts = re.sub(r'\s*<cachedir>/opt/homebrew/[^<]+</cachedir>', '', fonts)
 (RES / 'examples').mkdir()
 shutil.copy2(SOURCE_ROOT / 'example/LED.pcb', RES / 'examples/LED.pcb')
 # Use explicit module caches; never consult Homebrew at runtime.
-modules = [('/opt/homebrew/lib/gtk-2.0/2.10.0/immodules', 'lib/gtk-2.0/2.10.0/immodules'),
-           ('/opt/homebrew/lib/gtk-2.0/2.10.0/printbackends', 'lib/gtk-2.0/2.10.0/printbackends'),
+modules = [(GTK_PREFIX / 'lib/gtk-2.0/2.10.0/immodules', 'lib/gtk-2.0/2.10.0/immodules'),
+           (GTK_PREFIX / 'lib/gtk-2.0/2.10.0/printbackends', 'lib/gtk-2.0/2.10.0/printbackends'),
            ('/opt/homebrew/lib/gdk-pixbuf-2.0/2.10.0/loaders', 'lib/gdk-pixbuf-2.0/2.10.0/loaders')]
 roots = [(PREFIX / 'bin/pcb', CONT / 'MacOS/PCBEngine'),
          (Path('/opt/homebrew/opt/m4/bin/m4'), RES / 'bin/m4')]
 for directory, relative in modules:
     for p in sorted(Path(directory).glob('*.so')):
         roots.append((p, RES / relative / p.name))
-for source, name, relative in [('/opt/homebrew/lib/gtk-2.0/2.10.0/immodules.cache', 'gtk-immodules.cache', 'lib/gtk-2.0/2.10.0/immodules'),
+for source, name, relative in [(GTK_PREFIX / 'lib/gtk-2.0/2.10.0/immodules.cache', 'gtk-immodules.cache', 'lib/gtk-2.0/2.10.0/immodules'),
                                ('/opt/homebrew/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache', 'pixbuf-loaders.cache', 'lib/gdk-pixbuf-2.0/2.10.0/loaders')]:
     text = '\n'.join(line for line in Path(source).read_text().splitlines() if not line.startswith('#')) + '\n'
-    text = re.sub(r'"/opt/homebrew/[^"\n]+/([^/"\n]+\.(?:so|dylib))"',
+    text = re.sub(r'"/[^"\n]+/([^/"\n]+\.(?:so|dylib))"',
                   lambda m: f'"@RESOURCES@/{relative}/{m.group(1)}"', text)
-    text = re.sub(r'"/opt/homebrew/[^"\n]+/share/locale"', '"@RESOURCES@/share/locale"', text)
-    if '/opt/homebrew/' in text:
+    text = re.sub(r'"/[^"\n]+/share/locale"', '"@RESOURCES@/share/locale"', text)
+    if '/opt/homebrew/' in text or str(GTK_PREFIX) + '/' in text:
         raise RuntimeError('Unrelocated module cache: ' + name)
     (RES / (name + '.in')).write_text(text)
 (RES / 'gtkrc.in').write_text('gtk-theme-name="Raleigh"\ngtk-icon-theme-name="Adwaita"\ngtk-font-name="Sans 10"\n')
 # GTK catalogs are data, not library roots.
-for p in Path('/opt/homebrew/share/locale').glob('*/LC_MESSAGES/*.mo'):
+for p in (GTK_PREFIX / 'share/locale').glob('*/LC_MESSAGES/*.mo'):
     if p.name in ('gtk20.mo', 'gtk20-properties.mo', 'glib20.mo', 'atk10.mo', 'gdk-pixbuf.mo'):
-        dst = RES / 'share/locale' / p.relative_to('/opt/homebrew/share/locale')
+        dst = RES / 'share/locale' / p.relative_to(GTK_PREFIX / 'share/locale')
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(p, dst)
 # The legacy m4 helpers must retain spaces in colon-separated library paths.
@@ -120,7 +127,8 @@ for name in ('QueryLibrary.sh', 'ListLibraryContents.sh'):
 # Compile a launcher with no project path baked into it.
 launcher = WORK / 'PCB-launcher'
 subprocess.run(['/usr/bin/clang', '-std=c99', '-Wall', '-Wextra', '-Werror',
-                '-Wl,-headerpad_max_install_names', str(SUPPORT / 'scripts/bundle-launcher.c'), '-o', str(launcher)], check=True)
+                '-Wl,-headerpad_max_install_names',
+                *(['-DPCB_PROFILE_DIR="Library/Application Support/PCB-OpenGL-Quartz"'] if OPENGL else []), str(SUPPORT / 'scripts/bundle-launcher.c'), '-o', str(launcher)], check=True)
 roots.append((launcher, CONT / 'MacOS/PCB'))
 # Collect both static dependencies and dynamic modules. Real paths deduplicate aliases.
 queue = deque(roots)
@@ -138,6 +146,8 @@ while queue:
     shutil.copy2(src, dst)
     dst.chmod(0o755)
     sources[src], destinations[dst] = dst, src
+    if src.parent.name == 'lib' and ((src.parent.parent / 'INSTALL_RECEIPT.json').exists() or (src.parent.parent / '.brew').is_dir()):
+        formulas.add(src.parent.parent)
     if '/Cellar/' in str(src):
         formulas.add(Path(*src.parts[:src.parts.index('Cellar') + 3]))
     for dep in dependencies(src):
@@ -173,10 +183,10 @@ for size in (16, 32, 128, 256, 512):
         run('/usr/bin/sips', '-z', size * scale, size * scale, base_icon, '--out', iconset / name)
 run('/usr/bin/iconutil', '-c', 'icns', iconset, '-o', RES / 'PCB.icns')
 commit = run('git', '-C', SOURCE_ROOT, 'rev-parse', 'HEAD')
-info = dict(CFBundleExecutable='PCB', CFBundleIdentifier='local.geda-pcb.Quartz', CFBundleName='PCB',
-            CFBundleDisplayName='PCB', CFBundlePackageType='APPL', CFBundleVersion='1',
+info = dict(CFBundleExecutable='PCB', CFBundleIdentifier=('local.geda-pcb.OpenGL.Quartz' if OPENGL else 'local.geda-pcb.Quartz'), CFBundleName=NAME,
+            CFBundleDisplayName=NAME, CFBundlePackageType='APPL', CFBundleVersion='1',
             CFBundleShortVersionString='0.1', CFBundleIconFile='PCB.icns', NSHighResolutionCapable=True,
-            LSMinimumSystemVersion='26.0', CFBundleGetInfoString='gEDA PCB ' + commit[:8] + ' (GTK2/Quartz)')
+            LSMinimumSystemVersion='26.0', CFBundleGetInfoString='gEDA PCB ' + commit[:8] + (' (GTK2/Quartz/OpenGL experimental)' if OPENGL else ' (GTK2/Quartz)'))
 with (CONT / 'Info.plist').open('wb') as f:
     plistlib.dump(info, f)
 licenses = RES / 'licenses'
@@ -194,9 +204,10 @@ subprocess.run(['git', '-C', str(SOURCE_ROOT), 'archive', '--format=tar.gz', '-o
 tree(SUPPORT / 'patches', source / 'patches')
 tree(SUPPORT / 'netlist', source / 'netlist')
 (source / 'packaging').mkdir()
-for name in ('bundle-launcher.c', 'build-app.py', 'audit-app.py', 'build-env.sh', 'build-gtk2.sh', 'apply-source-patches.sh', 'preflight.sh', 'gnetlist-bridge.sh'):
+for name in ('build-opengl.py', 'prepare-gtkglext.py', 'prepare-gtk-sdk.py', 'bundle-launcher.c', 'build-app.py', 'audit-app.py', 'build-env.sh', 'build-gtk2.sh', 'apply-source-patches.sh', 'preflight.sh', 'gnetlist-bridge.sh'):
     shutil.copy2(SUPPORT / 'scripts' / name, source / 'packaging' / name)
-manifest = dict(pcb_commit=commit, architecture='arm64', gtk_backend='quartz', minimum_macos='26.0',
+manifest = dict(pcb_commit=commit, architecture='arm64', gtk_backend='quartz', minimum_macos='26.0', renderer=('OpenGL' if OPENGL else 'GDK'),
+                gtk_prefix=str(GTK_PREFIX), profile=('PCB-OpenGL-Quartz' if OPENGL else 'PCB-Quartz'),
                 ad_hoc_signed=True, notarized=False,
                 launcher_sha256=hashlib.sha256((SUPPORT / 'scripts/bundle-launcher.c').read_bytes()).hexdigest(),
                 patches={p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((SUPPORT / 'patches').glob('*.patch'))},
@@ -208,7 +219,7 @@ subprocess.run(['/usr/bin/codesign', '--force', '--sign', '-', str(APP)], check=
 subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(APP)], check=True)
 OUT.parent.mkdir(exist_ok=True)
 APP.rename(OUT)
-(ROOT / 'docs/bundle').mkdir(exist_ok=True)
-(ROOT / 'docs/bundle/build-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+(ROOT / ('docs/opengl-bundle' if OPENGL else 'docs/bundle')).mkdir(exist_ok=True)
+(ROOT / ('docs/opengl-bundle/build-manifest.json' if OPENGL else 'docs/bundle/build-manifest.json')).write_text(json.dumps(manifest, indent=2) + '\n')
 print(OUT)
 print(f'{len(destinations)} native images; {len(formulas)} dependency formulae')

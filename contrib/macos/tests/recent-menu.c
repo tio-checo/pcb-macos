@@ -139,7 +139,8 @@ static gboolean poll_request (gpointer unused)
     if (GTK_IS_WINDOW (p->data) && !GTK_IS_DIALOG (p->data))
       {
         const char *title = gtk_window_get_title (GTK_WINDOW (p->data));
-        if (title && g_str_has_suffix (title, " - PCB"))
+        if (title && (g_str_has_suffix (title, " - PCB") ||
+                      g_str_has_suffix (title, " - PCB OpenGL (experimental)")))
           g_key_file_set_string (output, "menu", "title", title);
       }
   g_list_free (windows);

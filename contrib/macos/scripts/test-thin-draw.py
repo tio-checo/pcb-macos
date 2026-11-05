@@ -24,6 +24,8 @@ parser.add_argument('--capture-source', type=Path,
                     default=Path(__file__).resolve().parent.parent / 'tests/capture-render.c')
 args = parser.parse_args()
 app = args.app.resolve()
+manifest = app / 'Contents/Resources/build-manifest.json'
+opengl = manifest.is_file() and json.loads(manifest.read_text()).get('renderer') == 'OpenGL'
 run = Path(tempfile.mkdtemp(prefix='pcb-thin-draw-', dir=args.run_parent))
 print('Artifacts: ' + str(run), flush=True)
 flags = subprocess.check_output(['/opt/homebrew/bin/pkg-config', '--cflags', 'gtk+-2.0'], text=True)
@@ -94,7 +96,12 @@ try:
         check('Normal rendering fills the polygon interior', pixel(normal, 80, 80) != background)
         thin, thin_board = snapshot('thin-poly', 'Display(ToggleThindrawPoly)')
         check('Thin Draw Poly action sets the board flag', 'thindrawpoly' in thin_board)
-        check('Thin Draw Poly removes the polygon interior fill', pixel(thin, 80, 80) == background)
+        if opengl:
+            expected = [round(b + (n - b) * 0.25) for b, n in zip(background, pixel(normal, 80, 80))]
+            check('OpenGL Thin Draw Poly reduces polygon opacity to one quarter',
+                  all(abs(a - b) <= 2 for a, b in zip(pixel(thin, 80, 80), expected)))
+        else:
+            check('Thin Draw Poly removes the polygon interior fill', pixel(thin, 80, 80) == background)
         check('Thin Draw Poly changes actual GTK pixels', normal != thin)
         check('Thin Draw Poly retains the polygon outline',
               any(pixel(thin, x, 80) != background for x in (31, 32, 33)))
@@ -102,8 +109,12 @@ try:
         restored, _ = snapshot('restored', 'Display(ToggleThindrawPoly)')
         check('Turning Thin Draw Poly off restores identical pixels', restored == normal)
         all_thin, _ = snapshot('thin-all', 'Display(ToggleThindraw)')
-        check('Thin Draw also removes the polygon interior fill', pixel(all_thin, 80, 80) == background)
-        check('Thin Draw reduces the trace to its center line', pixel(all_thin, 160, 165) == background)
+        if opengl:
+            check('OpenGL Thin Draw retains quarter-opacity polygons', pixel(all_thin, 80, 80) == pixel(thin, 80, 80))
+            check('Thin Draw reduces the trace to its center line', pixel(all_thin, 160, 165) == background)
+        else:
+            check('Thin Draw also removes the polygon interior fill', pixel(all_thin, 80, 80) == background)
+            check('Thin Draw reduces the trace to its center line', pixel(all_thin, 160, 165) == background)
         again, again_board = snapshot('normal-again', 'Display(ToggleThindraw)')
         check('Turning Thin Draw off restores identical pixels', again == normal)
         check('Switching display modes preserves the saved board data', again_board == normal_board)

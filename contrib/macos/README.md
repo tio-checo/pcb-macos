@@ -256,3 +256,8 @@ workspace. A small test helper enables a real dyld trace inside that sandbox,
 so an empty trace cannot pass the library check. Review the results, then
 remove only the temporary directory created for this test.
 See [VALIDATION.md](VALIDATION.md) for the scope and remaining limitations.
+
+## Experimental OpenGL variant
+
+For the separate GTK2/Quartz OpenGL application, private SDK preparation and
+renderer tests, see [OPENGL.md](OPENGL.md).
